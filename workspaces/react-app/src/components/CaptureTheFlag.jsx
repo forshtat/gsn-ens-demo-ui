@@ -27,11 +27,17 @@ export class CaptureTheFlag extends React.Component {
 
     ctf.listenToEvents(event => {
       this.log(event)
+    }, (event,step,total)=> {
+      console.log({event,step,total})
+      this.progress(event)
     })
 
     this.ctf = ctf
   }
 
+  progress({event,step,total,error}) {
+    this.setState({event,step,total,error})
+  }
 
   componentDidMount() {
     this.readContractInfo().catch(e => {

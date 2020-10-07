@@ -1,7 +1,7 @@
 import CtfArtifact from '@ctf/eth/artifacts/CaptureTheFlag.json'
 import ethers from 'ethers'
 import {networks} from './networks'
-
+import {RelayProvider, resolveConfigurationGSN} from "@opengsn/gsn";
 /**
  * a wrapper class for the CTF contract.
  * the only network-specific "leak" from this class is that the "capture()"
@@ -10,8 +10,9 @@ import {networks} from './networks'
  */
 export class Ctf {
 
-  constructor(addr, signer) {
+  constructor(addr, signer, gsnProvider) {
     this.address = addr
+    this.gsnProvider = gsnProvider
     this.theContract = new ethers.Contract(addr, CtfArtifact.abi, signer)
   }
 
@@ -20,14 +21,16 @@ export class Ctf {
     return await this.theContract.currentHolder()
   }
 
-  listenToEvents(cb) {
+  listenToEvents(onEvent, onProgress) {
     this.theContract.on('FlagCaptured', (previousHolder, currentHolder) => {
-      cb({previousHolder, currentHolder});
+      onEvent({previousHolder, currentHolder});
     })
+    this.gsnProvider.registerEventListener(onProgress)
   }
 
-  stopListenToEvents(cb) {
-    this.theContract.off(cb)
+  stopListenToEvents(onEvent, onProgress) {
+    this.theContract.off(onEvent)
+    this.gsnProvider.unregisterEventListener(onProgress)
   }
 
   async getPastEvents(count = 5) {
@@ -54,11 +57,19 @@ export async function initCtf() {
   let net = networks[network.chainId]
   if (!net) {
     net = {
-      ctf: require('@ctf/eth/deployments/localhost/CaptureTheFlag.json').address
+      ctf: require('@ctf/eth/deployments/localhost/CaptureTheFlag.json').address,
+      paymaster: require('@ctf/eth/build/gsn/Paymaster').address
     }
   }
 
-  const signer = provider.getSigner()
+  const gsnConfig = await resolveConfigurationGSN(web3Provider,{
+    logLevel:0,
+    paymasterAddress: net.paymaster
+  })
+  const gsnProvider = new RelayProvider(web3Provider, gsnConfig)
+  const provider2 = new ethers.providers.Web3Provider(gsnProvider);
 
-  return new Ctf(net.ctf, signer)
+  const signer = provider2.getSigner()
+
+  return new Ctf(net.ctf, signer, gsnProvider)
 }
