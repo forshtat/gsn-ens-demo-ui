@@ -56,9 +56,18 @@ export async function initCtf() {
 
   let net = networks[network.chainId]
   if (!net) {
-    net = {
-      ctf: require('@ctf/eth/deployments/localhost/CaptureTheFlag.json').address,
-      paymaster: require('@ctf/eth/build/gsn/Paymaster').address
+    if( network.chainId<1000 || ! window.location.href.match( /localhost|127.0.0.1/ ) )
+      throw new Error( 'Unsupported network. please switch to one of: '+ Object.values(networks).map(n=>n.name).join('/'))
+
+    const localCtf = '@ctf/eth/deployments/localhost/CaptureTheFlag.json'
+    const localPaymaster = '@ctf/eth/build/gsn/Paymaster'
+    try {
+      net = {
+        ctf: require(localCtf).address,
+        paymaster: require(localPaymaster).address
+      }
+    } catch(e) {
+      throw new Error( 'To run locally, you must run "yarn evm" and then "yarn deploy" before "yarn react-start" ')    
     }
   }
 
