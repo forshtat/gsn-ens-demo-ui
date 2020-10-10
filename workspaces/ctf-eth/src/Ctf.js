@@ -1,7 +1,8 @@
 import CtfArtifact from '@ctf/eth/artifacts/CaptureTheFlag.json'
 import ethers from 'ethers'
-import {networks} from './networks'
+import {networks} from '../build/networks.js'
 import {RelayProvider, resolveConfigurationGSN} from "@opengsn/gsn";
+import {createChainIdGetter} from "@nomiclabs/buidler/internal/core/providers/provider-utils";
 /**
  * a wrapper class for the CTF contract.
  * the only network-specific "leak" from this class is that the "capture()"
@@ -54,21 +55,17 @@ export async function initCtf() {
   const provider = new ethers.providers.Web3Provider(web3Provider);
   const network = await provider.getNetwork()
 
-  let net = networks[network.chainId]
+  let chainId = network.chainId;
+  let net = networks[chainId]
+  const netid = await provider.send('net_version')
+  console.log('chainid=',chainId, 'networkid=', netid)
+  if ( chainId != netid)
+    console.warn(`Incompatible network-id ${netid} and ${chainId}: for Metamask to work, they should be the same`)
   if (!net) {
-    if( network.chainId<1000 || ! window.location.href.match( /localhost|127.0.0.1/ ) )
+    if( chainId<1000 || ! window.location.href.match( /localhos1t|127.0.0.1/ ) )
       throw new Error( 'Unsupported network. please switch to one of: '+ Object.values(networks).map(n=>n.name).join('/'))
-
-    const localCtf = '@ctf/eth/deployments/localhost/CaptureTheFlag.json'
-    const localPaymaster = '@ctf/eth/build/gsn/Paymaster'
-    try {
-      net = {
-        ctf: require(localCtf).address,
-        paymaster: require(localPaymaster).address
-      }
-    } catch(e) {
-      throw new Error( 'To run locally, you must run "yarn evm" and then "yarn deploy" before "yarn react-start" ')    
-    }
+    else
+      throw new Error( 'To run locally, you must run "yarn evm" and then "yarn deploy" before "yarn react-start" ')
   }
 
   const gsnConfig = await resolveConfigurationGSN(web3Provider,{

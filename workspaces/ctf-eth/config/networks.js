@@ -1,6 +1,6 @@
 
 // deployed contracts:
-export  const networks = {
+const networks = {
   42: {
     name: "Kovan",
     paymaster: '0x083082b7Eada37dbD8f263050570B31448E61c94',
@@ -17,3 +17,5 @@ export  const networks = {
     ctf: '0x7A2014c282ffb3Dc968dE52Db21f80A9e0A5e981'
   }
 }
+
+module.exports={networks}
