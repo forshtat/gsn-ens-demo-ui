@@ -52,6 +52,9 @@ export async function initCtf() {
 
   const web3Provider = window.ethereum
 
+  if (!web3Provider)
+    throw new Error( 'No "window.ethereum" found. do you have Metamask installed?')
+
   const provider = new ethers.providers.Web3Provider(web3Provider);
   const network = await provider.getNetwork()
 

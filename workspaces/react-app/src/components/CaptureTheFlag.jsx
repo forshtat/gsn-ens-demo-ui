@@ -39,11 +39,12 @@ export class CaptureTheFlag extends React.Component {
     this.setState({event,step,total,error})
   }
 
-  componentDidMount() {
-    this.readContractInfo().catch(e => {
-      console.log('ex=', e);
-      this.setState({error: e.message})
-    })
+  async componentDidMount() {
+    await this.readContractInfo()
+    //   .catch(e => {
+    //   console.log('ex=', e);
+    //   this.setState({error: e.message})
+    // })
   }
 
   componentWillUnmount() {
@@ -83,8 +84,12 @@ export class CaptureTheFlag extends React.Component {
     return <>
       <h1>Capture The Flag </h1>
       Click the button to capture the flag with your account.
-      {/*<ActionButton title="Connect Wallet" action={() => window.ethereum.enable()}/>*/}
       <br/>
+      { !this.state.account && <span> <ActionButton title="Connect to Metamask"
+        action={window.ethereum.enable}
+        onError={() => e => this.setState({error: e ? e.message : "error"})}
+        /><p/></span> }
+
       <ActionButton title="Click here to capture the flag"
                     action={() => this.doCapture()}
                     onError={(e) => {
@@ -95,7 +100,7 @@ export class CaptureTheFlag extends React.Component {
       Your account:<Address addr={this.state.account}/> <br/>
       CTF Contract: <Address addr={this.state.contractAddress}/><br/>
       Current flag holder: <Address addr={this.state.current}/>
-      {this.state.current === this.state.account && "(you!)"}
+      { this.state.current && this.state.current === this.state.account && "(you!)"}
       <br/>
 
       {this.state.error ?
