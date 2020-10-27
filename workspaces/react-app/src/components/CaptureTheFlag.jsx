@@ -1,106 +1,134 @@
-import React from 'react';
-import {initCtf} from '@ctf/eth/src/Ctf'
-import {Progress, Address, ActionButton, Log, sleep} from './utils.jsx'
+import React from 'react'
+import { initCtf } from '@ctf/eth/src/Ctf'
+import { Progress, Address, ActionButton } from './utils.jsx'
+import PopUp from './PopUp'
+
+const MIN_REGISTRATION_DURATION = 2419200
 
 export class CaptureTheFlag extends React.Component {
 
-  constructor(props) {
+  constructor (props) {
     super(props)
     this.state = {}
   }
 
-  async readContractInfo() {
+  async readContractInfo () {
     const ctf = await initCtf()
 
-    const [current, events, account] = await Promise.all([
-      ctf.getCurrentFlagHolder(),
-      ctf.getPastEvents(),
+    const [account] = await Promise.all([
       ctf.getSigner()
     ])
 
     this.setState({
       contractAddress: ctf.address,
-      account,
-      current,
-      events: this.prependEvents(null, events)
-    })
-
-    ctf.listenToEvents(event => {
-      this.log(event)
-    }, (event,step,total)=> {
-      console.log({event,step,total})
-      this.progress(event)
+      account
     })
 
     this.ctf = ctf
   }
 
-  progress({event,step,total,error}) {
-    this.setState({event,step,total,error})
+  progress ({ event, step, total, error }) {
+    this.setState({ event, step, total, error })
   }
 
-  async componentDidMount() {
+  async componentDidMount () {
     await this.readContractInfo()
-    //   .catch(e => {
-    //   console.log('ex=', e);
-    //   this.setState({error: e.message})
-    // })
   }
 
-  componentWillUnmount() {
-    this.ctf.stopListenToEvents()
+  componentWillUnmount () {
   }
 
-  async simSend() {
-    for (let i = 1; i <= 8; i++) {
-      this.setState({step: i, total: 8, status: null})
-      await sleep(500)
+  render () {
+
+    let availLabelText
+    if (this.state.availability === undefined) {
+      availLabelText = 'enter an available domain name'
+    } else {
+      availLabelText = this.state.availability ? `domain ${this.state.domainName} is available` : `domain ${this.state.domainName} is not available`
     }
-    this.setState({status: 'Mining'})
-    await sleep(300)
-    this.setState({status: 'done'})
-  }
-
-  // add new events to the array. newer event is FIRST. keep only the first 5 lines
-  // (that is, latest 5 events)
-  prependEvents(currentEvents, newEvents) {
-    return [...newEvents.reverse(), ...(currentEvents || [])].slice(0, 5)
-  }
-
-  log(event) {
-    this.setState({events: this.prependEvents(this.state.events, [event])})
-  }
-
-  async doCapture() {
-    this.setState({status: 'sending'})
-    const res = await this.ctf.capture()
-    this.setState({status: "tx=" + res.hash.slice(0,20)})
-    const res2 = await res.wait()
-    this.setState({total:null, step:null,status: 'Mined in block: ' + res2.blockNumber})
-  }
-
-  render() {
 
     return <>
-      <h1>Capture The Flag </h1>
-      Click the button to capture the flag with your account.
+      <h1>Capture The Domain</h1>
+      <input type="text" name="domainName" value={this.state.domainName || ''} onChange={this.handleChange.bind(this)}/>
+      <div>{availLabelText}</div>
+      <div>Price is {this.state.price} wei</div>
       <br/>
-      { !this.state.account && <span> <ActionButton title="Connect to Metamask"
-        action={window.ethereum.enable}
-        onError={() => e => this.setState({error: e ? e.message : "error"})}
-        /><p/></span> }
+      {!this.state.account && <span> <ActionButton title="Connect to Metamask"
+                                                   action={window.ethereum.enable}
+                                                   onError={() => e => this.setState({ error: e ? e.message : 'error' })}
+      /><p/></span>}
 
-      <ActionButton title="Click here to capture the flag"
-                    action={() => this.doCapture()}
-                    onError={(e) => {
-                      console.log('==ex2',e)
-                      this.setState({error: e ? e.message : null})
-                    }}/>
+      <button
+        onClick={
+          () => {
+            console.log(`Checking availability for ${this.state.domainName}`)
+            this.ctf.recordExists(this.state.domainName).then((recordExists) => {
+              this.setAvailability(!recordExists)
+            })
+          }
+        }>Check availability for {this.state.domainName}</button>
+
+      {this.state.availability && <button
+        onClick={
+          () => {
+            console.log(`Getting price for ${this.state.domainName}`)
+            this.ctf.getPrice(this.state.domainName, MIN_REGISTRATION_DURATION).then((price) => {
+              this.setPrice(parseInt(price._hex))
+            })
+          }
+        }>Get price</button>}
+
+      {this.state.price && <button
+        onClick={
+          () => {
+            console.log(`Creating reservation for ${this.state.domainName}`)
+            this.ctf.createWyreReservation(this.state.domainName, this.state.account).then((response) => {
+              this.setReferenceId(response.referenceId)
+              this.setReservationId(response.wyreResponse.reservation)
+            })
+          }
+        }>Create reservation</button>}
+
+      {/*////// THIS HERE !*/}
+      {this.state.reservation = this.state.reservation || true}
+
+      {this.state.reservation &&
+      <div>
+        <div className="btn" onClick={this.togglePop.bind(this)}>
+          <button>Pay with Wyre</button>
+        </div>
+        {this.state.seen ? <PopUp toggle={this.togglePop.bind(this)}
+                                  ctf={this.ctf}
+                                  amount={this.getAmount()}
+                                  referenceId={this.state.referenceId}
+                                  reservationId={this.state.reservationId}
+                                  onPaymentComplete={this.onPaymentComplete.bind(this)}/> : null}
+      </div>}
+
+      {this.state.orderId && <button
+        onClick={
+          () => {
+            console.log(`Creating commitment ${this.state.domainName}`)
+            this.ctf.commitToDomain(this.state.domainName, this.state.account, this.state.orderId, this.state.referenceId).then((commitmentResult) => {
+              console.log(`Commitment created, txHash: ${commitmentResult.commitmentTx.hash}, secret: ${commitmentResult.secret}`)
+              this.setCommitment(commitmentResult.commitmentTx.hash, commitmentResult.secret)
+            })
+          }
+        }>Commit on-chain</button>}
+
+      {this.state.secret &&
+      <button
+        onClick={
+          () => {
+            this.purchaseOnChain()
+          }
+        }
+      > Buy {this.state.domainName}
+      </button>
+      }
+
       <br/>
       Your account:<Address addr={this.state.account}/> <br/>
-      CTF Contract: <Address addr={this.state.contractAddress}/><br/>
-      Current flag holder: <Address addr={this.state.current}/>
-      { this.state.current && this.state.current === this.state.account && "(you!)"}
       <br/>
 
       {this.state.error ?
@@ -108,8 +136,54 @@ export class CaptureTheFlag extends React.Component {
         :
         <Progress step={this.state.step} total={this.state.total} status={this.state.status}/>
       }
-
-      <Log events={this.state.events}/>
     </>
+  }
+
+  purchaseOnChain () {
+    this.ctf
+      .registerDomain(this.state.domainName, this.state.account, this.state.secret, this.state.price, MIN_REGISTRATION_DURATION, this.state.orderId, this.state.transferId)
+      .then((tx) => {
+        console.log('domain is purchased', tx.hash)
+      })
+  }
+
+  handleChange (event) {
+    this.setState({ domainName: event.target.value })
+  }
+
+  setAvailability (availability) {
+    this.setState({ availability })
+  }
+
+  setCommitment (commitment, secret) {
+    this.setState({ commitment, secret })
+  }
+
+  setReferenceId (referenceId) {
+    this.setState({ referenceId })
+  }
+
+  setReservationId (reservationId) {
+    this.setState({ reservationId })
+  }
+
+  setPrice (price) {
+    this.setState({ price })
+  }
+
+  togglePop () {
+    this.setState({
+      seen: !this.state.seen
+    })
+  }
+
+  onPaymentComplete (orderId) {
+    console.log(`onPaymentComplete(${orderId})`)
+    this.setState({ orderId })
+  }
+
+  getAmount () {
+    // TODO: convert ETH price + gas costs to usd
+    return '1'
   }
 }
